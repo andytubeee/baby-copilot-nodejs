@@ -10,6 +10,8 @@ const app = express();
 app.use(express.json());
 
 const MAX_TOKEN = 400;
+const MAX_COMPLETION_TOKENS = MAX_TOKEN - 50;
+const STOP_INDICATORS = ["<end>"];
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_KEY) {
@@ -34,8 +36,7 @@ app.post("/completions", async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content:
-            "Write clear, efficient code to accomplish the following task as a senior software developer. Use modern best practices and concise syntax appropriate for the language. Avoid unnecessary complexity, and ensure readability. Only return valid code without extra explanation. If no specific language is specified, use Python as its language, when in doubt, do not hallucinate and assume a requirement, don't implement if it is not in the instruction. Return only the code as text, no additional markdown styling.",
+          content: `Write clear, efficient code to accomplish the following task as a senior software developer. Use modern best practices and concise syntax appropriate for the language. Avoid unnecessary complexity, and ensure readability. Only return valid code without extra explanation. If no specific language is specified, use Python as its language, when in doubt, do not hallucinate and assume a requirement, don't implement if it is not in the instruction. Return only the code as text, no additional markdown styling.`,
         },
         {
           role: "user",
@@ -71,8 +72,7 @@ app.post("/explain", async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content:
-            "You are an expert programmer. Explain the following code in plain English, as if to a beginner. If the following text is not code, but rather plain english, you should still explain what the english sentence mean to someone who might be bad at English.",
+          content: `You are an expert programmer. Explain the following code in plain English, as if to a beginner. Keep the explanation short and ensure it ends naturally. If content is not related to code/coding, you just say "I don't understand this" You must not exceed ${MAX_COMPLETION_TOKENS} words. If needed, summarize key points near the end to avoid being cut off.`,
         },
         {
           role: "user",
@@ -80,6 +80,7 @@ app.post("/explain", async (req: Request, res: Response) => {
         },
       ],
       max_tokens: MAX_TOKEN,
+      stop: STOP_INDICATORS,
     });
 
     const explanation = response.choices?.[0]?.message?.content ?? "";
@@ -107,8 +108,7 @@ app.post("/comment", async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content:
-            "You are an expert software engineer. Read the following code and return the same code unchanged, but with helpful and concise comments added. Focus only on lines or blocks that are essential for understanding the logic. Do not explain trivial things (like variable declarations) unless they are part of the logic. Add comments above or beside the relevant lines in the format of the language (e.g. // for Java/Kotlin/JS, # for Python). Do not rewrite or reformat the code. Only add comments.",
+          content: `You are an expert software engineer. Read the following code and return the same code unchanged, but with helpful and concise comments added. Focus only on lines or blocks that are essential for understanding the logic. Do not explain trivial things (like variable declarations) unless they are part of the logic. Add comments above or beside the relevant lines in the format of the language (e.g. // for Java/Kotlin/JS, # for Python). Do not rewrite or reformat the code. Only add comments. If user did not provide any code, or not code related, you say (and should only return, in all caps) "NOT CODE"`,
         },
         {
           role: "user",
