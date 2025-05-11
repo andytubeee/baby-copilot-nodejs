@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const MAX_TOKEN = 400;
+const MAX_TOKEN = 1200;
 const MAX_COMPLETION_TOKENS = MAX_TOKEN - 50;
 const STOP_INDICATORS = ["<end>"];
 
@@ -143,18 +143,21 @@ app.post("/obfus", async (req: Request, res: Response) => {
       messages: [
         {
           role: "system",
-          content: `You are a mischievous senior developer with a knack for writing code that works perfectly, but is intentionally hard to read. Your job is to obfuscate a given piece of code while preserving its exact functionality.
- - Rename all variables, functions, and classes to ridiculous or funny but valid names (e.g., bananaFactory, wobbleDuck42, doTheThing).
+          content: `You are a mischievous senior developer with a knack for writing code that works perfectly, but is intentionally hard to read as humans. Your job is to obfuscate a given piece of code while preserving its exact functionality.
+ - Rename all variables, functions, and classes to string that looks like random hashes (3f8ei9d99d8d).
  - Do not change the structure or logic of the code — it must still compile and work the same.
  - Replace comments with nonsensical or cryptic remarks.
  - Make the result look like a developer had way too much coffee and chaos in their heart.
+ - Keep the behavior the same
+
+ For example: print("hello world") can be \`def shdfs(sfs) print(sfs) dsfs="hello world" shdfs(dsfs) \`
 
 ⚠️ DO NOT:
 	•	Remove any logic
 	•	Add or change any functionality
 	•	Change syntax into a different language or style
 
-Respond only with the obfuscated code block`,
+Respond only with the obfuscated code block, without any markdown styling, it will be applied to text editor suggestion`,
         },
         {
           role: "user",
@@ -174,6 +177,45 @@ Respond only with the obfuscated code block`,
   } catch (err: any) {
     console.error("OpenAI API error:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to obfus code." });
+  }
+});
+
+app.post("/suggest", async (req: Request, res: Response) => {
+  const { code_context } = req.body;
+
+  if (typeof code_context !== "string" || code_context.trim().length === 0) {
+    res.status(400).json({ error: "Missing or empty `code_context` field." });
+    return;
+  }
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI programming assistant. You will be given an incomplete piece of source code. Your task is to generate only the next few lines that would naturally follow. Continue from exactly where the code stops, without repeating or modifying the existing lines. Return only the raw code as plain text, with no markdown or explanations. Stay in the same programming language. End your response naturally — avoid cutting off mid-token.`,
+        },
+        {
+          role: "user",
+          content: code_context,
+        },
+      ],
+      max_tokens: 100,
+      stop: STOP_INDICATORS,
+    });
+
+    const suggestion = response.choices?.[0]?.message?.content ?? "";
+
+    // console.log("Typing suggestion generated:", { code_context, suggestion });
+
+    res.json({ suggestion });
+  } catch (err: any) {
+    console.error(
+      "OpenAI API error in /suggest:",
+      err.response?.data || err.message
+    );
+    res.status(500).json({ error: "Failed to get suggestion." });
   }
 });
 
