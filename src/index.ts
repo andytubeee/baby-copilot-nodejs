@@ -90,7 +90,7 @@ app.post("/explain", async (req: Request, res: Response) => {
 
   if (cached) {
     console.log("✅ Cache hit:", cacheKey);
-    res.json({ completion: cached });
+    res.json({ explanation: cached });
     return;
   }
 
@@ -136,7 +136,7 @@ app.post("/comment", async (req: Request, res: Response) => {
 
   if (cached) {
     console.log("✅ Cache hit:", cacheKey);
-    res.json({ completion: cached });
+    res.json({ commented_code: cached });
     return;
   }
 
@@ -182,7 +182,7 @@ app.post("/obfus", async (req: Request, res: Response) => {
 
   if (cached) {
     console.log("✅ Cache hit:", cacheKey);
-    res.json({ completion: cached });
+    res.json({ obfus: cached });
     return;
   }
 
@@ -247,7 +247,7 @@ app.post("/suggest", async (req: Request, res: Response) => {
 
   if (cached) {
     console.log("✅ Cache hit:", cacheKey);
-    res.json({ completion: cached });
+    res.json({ suggestion: cached });
     return;
   }
 
