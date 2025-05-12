@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
+import { getCacheKey, getFromCache, setInCache } from "./RedisUtil";
 
 import { OpenAI } from "openai";
-import axios from "axios";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -23,10 +23,26 @@ const client = new OpenAI({
   apiKey: OPENAI_KEY,
 });
 
+export type AppRoutes =
+  | "completion"
+  | "explain"
+  | "comment"
+  | "obfus"
+  | "suggest";
+
 app.post("/completions", async (req: Request, res: Response) => {
   const { instruction } = req.body;
   if (typeof instruction !== "string" || instruction.trim().length === 0) {
     res.status(400).json({ error: "Missing or empty `instruction` field." });
+    return;
+  }
+
+  const cacheKey = getCacheKey("completion", instruction);
+  const cached = await getFromCache(cacheKey);
+
+  if (cached) {
+    console.log("✅ Cache hit:", cacheKey);
+    res.json({ completion: cached });
     return;
   }
 
@@ -52,6 +68,9 @@ app.post("/completions", async (req: Request, res: Response) => {
       response: code,
     });
 
+    // Redis cache
+    await setInCache(cacheKey, code, 3600);
+
     res.json({ completion: code });
   } catch (err: any) {
     console.error("OpenAI API error:", err.response?.data || err.message);
@@ -63,6 +82,15 @@ app.post("/explain", async (req: Request, res: Response) => {
   const { code } = req.body;
   if (typeof code !== "string" || code.trim().length === 0) {
     res.status(400).json({ error: "Missing or empty `code` field." });
+    return;
+  }
+
+  const cacheKey = getCacheKey("explain", code);
+  const cached = await getFromCache(cacheKey);
+
+  if (cached) {
+    console.log("✅ Cache hit:", cacheKey);
+    res.json({ completion: cached });
     return;
   }
 
@@ -88,7 +116,8 @@ app.post("/explain", async (req: Request, res: Response) => {
       code,
       explanation,
     });
-
+    // Redis cache
+    await setInCache(cacheKey, explanation, 3600);
     res.json({ explanation });
   } catch (err: any) {
     console.error("OpenAI API error:", err.response?.data || err.message);
@@ -99,6 +128,15 @@ app.post("/comment", async (req: Request, res: Response) => {
   const { code } = req.body;
   if (typeof code !== "string" || code.trim().length === 0) {
     res.status(400).json({ error: "Missing or empty `code` field." });
+    return;
+  }
+
+  const cacheKey = getCacheKey("comment", code);
+  const cached = await getFromCache(cacheKey);
+
+  if (cached) {
+    console.log("✅ Cache hit:", cacheKey);
+    res.json({ completion: cached });
     return;
   }
 
@@ -123,6 +161,8 @@ app.post("/comment", async (req: Request, res: Response) => {
       code,
       commented_code,
     });
+    // Redis cache
+    await setInCache(cacheKey, commented_code, 3600);
 
     res.json({ commented_code });
   } catch (err: any) {
@@ -134,6 +174,15 @@ app.post("/obfus", async (req: Request, res: Response) => {
   const { code } = req.body;
   if (typeof code !== "string" || code.trim().length === 0) {
     res.status(400).json({ error: "Missing or empty `code` field." });
+    return;
+  }
+
+  const cacheKey = getCacheKey("obfus", code);
+  const cached = await getFromCache(cacheKey);
+
+  if (cached) {
+    console.log("✅ Cache hit:", cacheKey);
+    res.json({ completion: cached });
     return;
   }
 
@@ -152,8 +201,10 @@ app.post("/obfus", async (req: Request, res: Response) => {
 
  For example: print("hello world") can be \`def shdfs(sfs) print(sfs) dsfs="hello world" shdfs(dsfs) \`
 
+ You may reinvent new functions that reroutes how current code works, i.e if original function is f(x), you may have a function g that calls f on x, making it confusing.
+
 ⚠️ DO NOT:
-	•	Remove any logic
+	•	Change the original logic
 	•	Add or change any functionality
 	•	Change syntax into a different language or style
 
@@ -173,6 +224,9 @@ Respond only with the obfuscated code block, without any markdown styling, it wi
       obfus,
     });
 
+    // Redis cache
+    setInCache(cacheKey, obfus, 3600);
+
     res.json({ obfus });
   } catch (err: any) {
     console.error("OpenAI API error:", err.response?.data || err.message);
@@ -185,6 +239,15 @@ app.post("/suggest", async (req: Request, res: Response) => {
 
   if (typeof code_context !== "string" || code_context.trim().length === 0) {
     res.status(400).json({ error: "Missing or empty `code_context` field." });
+    return;
+  }
+
+  const cacheKey = getCacheKey("suggest", code_context);
+  const cached = await getFromCache(cacheKey);
+
+  if (cached) {
+    console.log("✅ Cache hit:", cacheKey);
+    res.json({ completion: cached });
     return;
   }
 
@@ -208,6 +271,9 @@ app.post("/suggest", async (req: Request, res: Response) => {
     const suggestion = response.choices?.[0]?.message?.content ?? "";
 
     // console.log("Typing suggestion generated:", { code_context, suggestion });
+
+    // Redis cache
+    setInCache(cacheKey, suggestion, 3600);
 
     res.json({ suggestion });
   } catch (err: any) {
