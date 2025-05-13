@@ -1,24 +1,38 @@
 import { AppRoutes } from ".";
-// RedisUtil.ts
 import { createClient } from "redis";
 import crypto from "crypto";
+
+let redisReady = false;
 
 const redisClient = createClient({
   socket: {
     host: "localhost",
-    port: 6379,
+    port: +(process.env.REDIS_PORT || 6379),
   },
-  username: "default",
+  username: process.env.REDIS_USER,
   password: process.env.REDIS_PASS,
 });
 
-redisClient.on("error", (err) => console.error("Redis Client Error:", err));
+export const isRedisAvailable = async (): Promise<boolean> => {
+  if (redisReady) return true;
+
+  try {
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+    }
+
+    const response = await redisClient.ping();
+    redisReady = response === "PONG";
+    return redisReady;
+  } catch (err) {
+    console.warn("Redis not available. Caching disabled.");
+    redisReady = false;
+    return false;
+  }
+};
 
 (async () => {
-  if (!redisClient.isOpen) {
-    await redisClient.connect();
-    console.log("Redis Connected Successfully");
-  }
+  await isRedisAvailable();
 })();
 
 export function getCacheKey(prefix: AppRoutes, rawInput: string): string {
@@ -35,9 +49,10 @@ export function getCacheKey(prefix: AppRoutes, rawInput: string): string {
  * @returns Promise<string | null>
  */
 export const getFromCache = async (key: string): Promise<string | null> => {
+  if (!redisReady) return null;
+
   try {
-    const result = await redisClient.get(key);
-    return result;
+    return await redisClient.get(key);
   } catch (err) {
     console.error("Redis get error:", err);
     return null;
@@ -55,10 +70,10 @@ export const setInCache = async (
   value: string,
   ttlSeconds: number = 3600
 ): Promise<void> => {
+  if (!redisReady) return;
+
   try {
-    await redisClient.set(key, value, {
-      EX: ttlSeconds,
-    });
+    await redisClient.set(key, value, { EX: ttlSeconds });
   } catch (err) {
     console.error("Redis set error:", err);
   }
